@@ -17,6 +17,11 @@ slider31:env_dec=1<1, 10000, 1:log>Decay
 slider32:env_sus=0<-90, 0, .1:log>Sustain Db
 slider33:env_rel=500<1, 10000, 1:log>Release
 
+slider35:pitch_amt=0<-24,24,0.1>Pitch amount
+slider36:pitch_att=1<1, 10000, 1:log>Pitch Attack
+slider37:pitch_dec=1<1, 10000, 1:log>Pitch Decay
+slider38:pitch_rel=500<1, 10000, 1:log>Pitch Release
+
 import 3o.adsr.jsfx-inc
 import 3o.array.jsfx-inc
 
@@ -27,7 +32,7 @@ options:gfx_hz=60
 poly.array_init(0, 128, 5); // [note, velocity, freq, phase-left, phase-right]
 envelope = 2000; // 128 * 7 buffer for keys adsr
 remove_ptrs.array_init(4000, 128, 1);
-pitch_env = 5000; // 128 * 8 buffer for pitch adsr
+pitch_env = 5000; // 128 * 7 buffer for pitch adsr
 
 function wrap(number) (number <= 1 ? number : number - 1;);
 function sine_wave(cycle) (sin(cycle * 2 * $pi););
@@ -111,12 +116,22 @@ while (midirecv(offset, msg1, note, vel)) (
     adsr_sets(exp(log(10)/20 * env_sus), env);
     adsr_setr(env_rel * 0.001, env);
     adsr_a(vel / 127, env);
+
+    env = pitch_env + note * 7;
+    adsr_seta(pitch_att * 0.001, env);
+    adsr_setd(pitch_dec * 0.001, env);
+    adsr_sets(1, env);
+    adsr_setr(pitch_rel * 0.001, env);
+    adsr_a(1, env);
   );
 
   // Note off
   event == 0x80 || (event == 0x90 && !vel) ? (
     ptr = poly.array_find(note);
-    ptr >= 0 ? adsr_r(envelope + note * 7);
+    ptr >= 0 ? (
+      adsr_r(envelope + note * 7);
+      adsr_r(pitch_env + note * 7);
+    );
   );
 
   // All notes off
@@ -143,9 +158,12 @@ while(ptr >= 0) ( // for each note/voice
 
   envbuf = envelope + ptr[0] * 7;
   env_state = adsr_process(envbuf);
-
+  pitchbuf = pitch_env + ptr[0] * 7;
+  adsr_process(pitchbuf);
+  
   // OSC1
-  osc_det = osc1_coarse_det * osc1_fine_det;
+  osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
+  osc_det = osc1_coarse_det * osc1_fine_det * osc_pitch_det;
   ptr[3] = wrap(ptr[3] + ptr[2] * osc1_st_det * osc_det); // phase left
   ptr[4] = wrap(ptr[4] + ptr[2] / osc1_st_det * osc_det); // phase right
   wave_l = make_wave(osc1_wave, wrap(ptr[3] + osc1_phase_offset * 0.25));
