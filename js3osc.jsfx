@@ -160,9 +160,9 @@ while(ptr >= 0) ( // for each note/voice
   env_state = adsr_process(envbuf);
   pitchbuf = pitch_env + ptr[0] * 7;
   adsr_process(pitchbuf);
+  osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
   
   // OSC1
-  osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
   osc_det = osc1_coarse_det * osc1_fine_det * osc_pitch_det;
   ptr[3] = wrap(ptr[3] + ptr[2] * osc1_st_det * osc_det); // phase left
   ptr[4] = wrap(ptr[4] + ptr[2] / osc1_st_det * osc_det); // phase right
