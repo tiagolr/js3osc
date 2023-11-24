@@ -24,6 +24,7 @@ slider38:pitch_rel=500<1, 10000, 1:log>Pitch Release
 
 import 3o.adsr.jsfx-inc
 import 3o.array.jsfx-inc
+import 3o.zdf_filter.jsfx-inc
 
 options:gfx_hz=60
 
@@ -33,6 +34,33 @@ poly.array_init(0, 128, 5); // [note, velocity, freq, phase-left, phase-right]
 envelope = 2000; // 128 * 7 buffer for keys adsr
 remove_ptrs.array_init(4000, 128, 1);
 pitch_env = 5000; // 128 * 7 buffer for pitch adsr
+filter_arr_l = 6000; // 128 * 11 buffer for filters one per key left channel
+filter_arr_r = 8000; // 128 * 11 buffer for filters one per key right channel
+
+// copy filter coeficients from buffer1 to buffer2
+function filter_copy_coefs(buf1, buf2) (
+  buf2[2] = buf1[2];
+  buf2[3] = buf1[3];
+  buf2[4] = buf1[4];
+);
+
+function filter_setf(buf, freq, q) (
+  filter.zdf_setf(freq, q);
+  buf[2] = filter.g;
+  buf[3] = filter.r2;
+  buf[4] = filter.h;
+);
+
+function filter_lp(buf, sample) (
+  filter.s1 = buf[0];
+  filter.s2 = buf[1];
+  filter.g = buf[2];
+  filter.r2 = buf[3];
+  filter.h = buf[4];
+  filter.zdf_svf_lp(sample);
+  buf[0] = filter.s1;
+  buf[1] = filter.s2;
+);
 
 function wrap(number) (number <= 1 ? number : number - 1;);
 function sine_wave(cycle) (sin(cycle * 2 * $pi););
@@ -161,13 +189,19 @@ while(ptr >= 0) ( // for each note/voice
   pitchbuf = pitch_env + ptr[0] * 7;
   adsr_process(pitchbuf);
   osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
-  
+  filterbuf_l = filter_arr_l + ptr[0] * 11;
+  filterbuf_r = filter_arr_r + ptr[0] * 11;
+  filter_setf(filterbuf_l, 400, 1);
+  filter_copy_coefs(filterbuf_l, filterbuf_r);
+
   // OSC1
   osc_det = osc1_coarse_det * osc1_fine_det * osc_pitch_det;
   ptr[3] = wrap(ptr[3] + ptr[2] * osc1_st_det * osc_det); // phase left
   ptr[4] = wrap(ptr[4] + ptr[2] / osc1_st_det * osc_det); // phase right
   wave_l = make_wave(osc1_wave, wrap(ptr[3] + osc1_phase_offset * 0.25));
-  wave_r = make_wave(osc2_wave, wrap(ptr[4] - osc1_phase_offset * 0.25));
+  wave_r = make_wave(osc1_wave, wrap(ptr[4] - osc1_phase_offset * 0.25));
+  wave_l = filter_lp(filterbuf_l, wave_l);
+  wave_r = filter_lp(filterbuf_r, wave_r);
   spl0 += wave_l * (1 - osc1_pan) * envbuf[] * osc1_gain;
   spl1 += wave_r * (1 + osc1_pan) * envbuf[] * osc1_gain;
 
