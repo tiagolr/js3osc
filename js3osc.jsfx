@@ -1,7 +1,7 @@
 desc:JS3Osc
 tags: synth, instrument
 
-slider1:maxpoly=16<2, 32, 1>-Polyphony
+slider1:maxpoly=32<2, 64, 1>-Polyphony
 
 slider2:osc1_vol=-18<-60, 0, .01>-Osc1 Volume
 slider3:osc1_wave=0<0, 5, 1{Sine,Triangle,Saw,Square,Pulse,Noise}>-Osc1 Wave
@@ -202,8 +202,16 @@ while (midirecv(offset, msg1, note, vel)) (
   event == 0x90 && vel ? (
 
     // remove note if it is already playing
+    note_repeat = 0;
     ptr = poly.array_find(note);
     ptr >= 0 ? (
+      note_repeat = 1;
+      last_phase_1l = ptr[3];
+      last_phase_1r = ptr[4];
+      last_phase_2l = ptr[5];
+      last_phase_2r = ptr[6];
+      last_phase_3l = ptr[7];
+      last_phase_3r = ptr[8];
       poly.array_remove(ptr);
     );
 
@@ -216,12 +224,12 @@ while (midirecv(offset, msg1, note, vel)) (
     ptr[0] = note;
     ptr[1] = vel / 127;
     ptr[2] = note2freq(note) / srate;
-    ptr[3] = rand_phase * (rand() - 0.5); // osc start phase left
-    ptr[4] = rand_phase * (rand() - 0.5); // osc start phase right
-    ptr[5] = rand_phase * (rand() - 0.5); // osc 2 start phase left
-    ptr[6] = rand_phase * (rand() - 0.5); // osc 2
-    ptr[7] = rand_phase * (rand() - 0.5); // osc 3
-    ptr[8] = rand_phase * (rand() - 0.5); // osc 3
+    ptr[3] = note_repeat ? last_phase_1l : rand_phase * (rand() - 0.5); // osc start phase left
+    ptr[4] = note_repeat ? last_phase_1r : rand_phase * (rand() - 0.5); // osc start phase right
+    ptr[5] = note_repeat ? last_phase_2l : rand_phase * (rand() - 0.5); // osc 2 start phase left
+    ptr[6] = note_repeat ? last_phase_2r : rand_phase * (rand() - 0.5); // osc 2
+    ptr[7] = note_repeat ? last_phase_3l : rand_phase * (rand() - 0.5); // osc 3
+    ptr[8] = note_repeat ? last_phase_3r : rand_phase * (rand() - 0.5); // osc 3
     
     env = envelope + note * 7;
     adsr_seta(env_att * 0.001, env);
