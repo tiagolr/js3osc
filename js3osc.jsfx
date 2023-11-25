@@ -196,11 +196,11 @@ on_slider();
 
 function get_start_phase(osc) local (ph) (
   ph = 0;
-  osc == 0 ? ph = (osc1_inv ? -0.5 : 0);
-  osc == 1 ? ph = (osc2_inv ? -0.5 : 0);
-  osc == 2 ? ph = (osc3_inv ? -0.5 : 0);
+  osc == 0 ? ph = (osc1_inv ? 0.5 : 0);
+  osc == 1 ? ph = (osc2_inv ? 0.5 : 0);
+  osc == 2 ? ph = (osc3_inv ? 0.5 : 0);
   ph += rand_phase * (rand() - 0.5);
-  ph < -0.5 ? ph += 1;
+  //ph < -0.5 ? ph += 1;
   ph;
 );
 
@@ -212,16 +212,8 @@ while (midirecv(offset, msg1, note, vel)) (
   event == 0x90 && vel ? (
 
     // remove note if it is already playing
-    note_repeat = 0;
     ptr = poly.array_find(note);
     ptr >= 0 ? (
-      note_repeat = 1;
-      last_phasel = ptr[3];
-      last_phaser = ptr[4];
-      last_phasel2 = ptr[5];
-      last_phaser2 = ptr[6];
-      last_phasel3 = ptr[7];
-      last_phaser3 = ptr[8];
       poly.array_remove(ptr);
     );
 
@@ -234,12 +226,12 @@ while (midirecv(offset, msg1, note, vel)) (
     ptr[0] = note;
     ptr[1] = vel / 127;
     ptr[2] = note2freq(note) / srate;
-    ptr[3] = note_repeat ? last_phasel : get_start_phase(0); // osc start phase left
-    ptr[4] = note_repeat ? last_phaser : get_start_phase(0); // osc start phase right
-    ptr[5] = note_repeat ? last_phasel2 : get_start_phase(1); // osc 2 start phase left
-    ptr[6] = note_repeat ? last_phaser2 : get_start_phase(1); // osc 2
-    ptr[7] = note_repeat ? last_phasel3 : get_start_phase(2); // osc 3
-    ptr[8] = note_repeat ? last_phaser3 : get_start_phase(2); // osc 3
+    ptr[3] = get_start_phase(0); // osc start phase left
+    ptr[4] = get_start_phase(0); // osc start phase right
+    ptr[5] = get_start_phase(1); // osc 2 start phase left
+    ptr[6] = get_start_phase(1); // osc 2
+    ptr[7] = get_start_phase(2); // osc 3
+    ptr[8] = get_start_phase(2); // osc 3
     
     env = envelope + note * 7;
     adsr_seta(env_att * 0.001, env);
