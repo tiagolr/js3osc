@@ -290,9 +290,13 @@ while(ptr >= 0) ( // for each note/voice
   out_r = 0;
   envbuf = envelope + ptr[0] * 7;
   env_state = adsr_process(envbuf);
-  pitchbuf = pitch_env + ptr[0] * 7;
-  adsr_process(pitchbuf);
-  osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
+  pitch_amt ? (
+    pitchbuf = pitch_env + ptr[0] * 7;
+    adsr_process(pitchbuf);
+    osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
+  ) : (
+    osc_pitch_det = 1;
+  );
 
   // OSC1
   osc1_vol > -60 ? (
@@ -332,8 +336,8 @@ while(ptr >= 0) ( // for each note/voice
     adsr_process(filterbuf);
     filterbuf_l = filter_arr_l + ptr[0] * 11; // filter buffer left
     filterbuf_r = filter_arr_r + ptr[0] * 11; // filter buffer right
-
     multiplier = pow(20000/filter_freq, filterbuf[0] * filter_adsr_amt);
+    
     filter_setf(filterbuf_l, filter_freq * multiplier, filter_q);
     filter_copy_coefs(filterbuf_l, filterbuf_r);
     
