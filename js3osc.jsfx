@@ -133,15 +133,42 @@ function filter_setf(buf, freq, q) (
 );
 
 // wraps filter function using buffers
-function filter_lp(buf, sample) (
+function filter_lp(buf, sample) local(lp) (
   filter.s1 = buf[0];
   filter.s2 = buf[1];
   filter.g = buf[2];
   filter.r2 = buf[3];
   filter.h = buf[4];
-  filter.zdf_svf_lp(sample);
+  lp = filter.zdf_svf_lp(sample);
   buf[0] = filter.s1;
   buf[1] = filter.s2;
+  lp;
+);
+
+// wraps filter function using buffers
+function filter_bp(buf, sample) local(bp) (
+  filter.s1 = buf[0];
+  filter.s2 = buf[1];
+  filter.g = buf[2];
+  filter.r2 = buf[3];
+  filter.h = buf[4];
+  bp = filter.zdf_svf_bp(sample);
+  buf[0] = filter.s1;
+  buf[1] = filter.s2;
+  bp;
+);
+
+// wraps filter function using buffers
+function filter_hp(buf, sample) local(hp) (
+  filter.s1 = buf[0];
+  filter.s2 = buf[1];
+  filter.g = buf[2];
+  filter.r2 = buf[3];
+  filter.h = buf[4];
+  hp = filter.zdf_svf_hp(sample);
+  buf[0] = filter.s1;
+  buf[1] = filter.s2;
+  hp;
 );
 
 function on_slider() (
@@ -299,17 +326,28 @@ while(ptr >= 0) ( // for each note/voice
     out_l += wave_l * (1 - osc3_pan) * envbuf[] * osc3_gain;
     out_r += wave_r * (1 + osc3_pan) * envbuf[] * osc3_gain;
   );
+  
+  filter_shape != 0 ? (
+    filterbuf = filter_env + ptr[0] * 7; // envelope buffer
+    adsr_process(filterbuf);
+    filterbuf_l = filter_arr_l + ptr[0] * 11; // filter buffer left
+    filterbuf_r = filter_arr_r + ptr[0] * 11; // filter buffer right
 
-  filterbuf = filter_env + ptr[0] * 7; // envelope buffer
-  adsr_process(filterbuf);
-  filterbuf_l = filter_arr_l + ptr[0] * 11; // filter buffer left
-  filterbuf_r = filter_arr_r + ptr[0] * 11; // filter buffer right
-
-  multiplier = pow(20000/filter_freq, filterbuf[0] * filter_adsr_amt);
-  filter_setf(filterbuf_l, filter_freq * multiplier, filter_q);
-  filter_copy_coefs(filterbuf_l, filterbuf_r);
-  out_l = filter_lp(filterbuf_l, out_l);
-  out_r = filter_lp(filterbuf_r, out_r);
+    multiplier = pow(20000/filter_freq, filterbuf[0] * filter_adsr_amt);
+    filter_setf(filterbuf_l, filter_freq * multiplier, filter_q);
+    filter_copy_coefs(filterbuf_l, filterbuf_r);
+    
+    filter_shape == 1 ? (
+      out_l = filter_lp(filterbuf_l, out_l);
+      out_r = filter_lp(filterbuf_r, out_r);
+    ) : filter_shape == 2 ? (
+      out_l = filter_bp(filterbuf_l, out_l);
+      out_r = filter_bp(filterbuf_r, out_r);
+    ) : (
+      out_l = filter_hp(filterbuf_l, out_l);
+      out_r = filter_hp(filterbuf_r, out_r);
+    );
+  );
 
   spl0 += out_l;
   spl1 += out_r;
