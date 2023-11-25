@@ -3,7 +3,7 @@ tags: synth, instrument
 
 slider1:maxpoly=16<2, 32, 1>-Polyphony
 
-slider2:osc1_vol=-12<-60, 0, .01>Volume
+slider2:osc1_vol=-12<-60, 0, .01>Osc1 Volume
 slider3:osc1_wave=0<0, 5, 1{Sine,Triangle,Saw,Square,Pulse,Noise}>Osc1 Wave
 slider4:osc1_phase_offset=0<-1,1,0.01>Osc1 Phase Offset
 slider5:osc1_phase_det=0<-100, 100, 1>Osc1 Phase Detune
@@ -20,7 +20,17 @@ slider33:env_rel=500<1, 10000, 1:log>Release
 slider35:pitch_amt=0<-24,24,0.1>Pitch amount
 slider36:pitch_att=1<1, 10000, 1:log>Pitch Attack
 slider37:pitch_dec=1<1, 10000, 1:log>Pitch Decay
-slider38:pitch_rel=500<1, 10000, 1:log>Pitch Release
+slider38:pitch_sus=1<0, 1, 0.01>Pitch Sustain
+slider39:pitch_rel=500<1, 10000, 1:log>Pitch Release
+
+slider40:filter_shape=0<0,2,1{Off,Low Pass,Band Pass,High Pass}>Filter shape
+slider41:filter_freq=11000<20, 22000, 1:log>Filter frequency
+slider42:filter_q=0.70<0.01, 40, 0.01:log>Filter Q
+slider43:filter_adsr_amt=0<-1, 1, 0.01>Filter ASDR amt.
+slider44:filter_att=1<1, 10000, 1:log>Filter Attack
+slider45:filter_dec=1<1, 10000, 1:log>Filter Decay
+slider46:filter_sus=1<0, 1, 0.01>Filter Sustain
+slider47:filter_rel=500<1, 10000, 1:log>filter Release
 
 import 3o.adsr.jsfx-inc
 import 3o.array.jsfx-inc
@@ -36,31 +46,7 @@ remove_ptrs.array_init(4000, 128, 1);
 pitch_env = 5000; // 128 * 7 buffer for pitch adsr
 filter_arr_l = 6000; // 128 * 11 buffer for filters one per key left channel
 filter_arr_r = 8000; // 128 * 11 buffer for filters one per key right channel
-
-// copy filter coeficients from buffer1 to buffer2
-function filter_copy_coefs(buf1, buf2) (
-  buf2[2] = buf1[2];
-  buf2[3] = buf1[3];
-  buf2[4] = buf1[4];
-);
-
-function filter_setf(buf, freq, q) (
-  filter.zdf_setf(freq, q);
-  buf[2] = filter.g;
-  buf[3] = filter.r2;
-  buf[4] = filter.h;
-);
-
-function filter_lp(buf, sample) (
-  filter.s1 = buf[0];
-  filter.s2 = buf[1];
-  filter.g = buf[2];
-  filter.r2 = buf[3];
-  filter.h = buf[4];
-  filter.zdf_svf_lp(sample);
-  buf[0] = filter.s1;
-  buf[1] = filter.s2;
-);
+filter_env = 10000; // 128 * 7 buffer for filter adsr
 
 function wrap(number) (number <= 1 ? number : number - 1;);
 function sine_wave(cycle) (sin(cycle * 2 * $pi););
@@ -107,6 +93,33 @@ function make_wave(wave, cycle) (
     : make_noise();
 );
 
+// copy filter coeficients from buffer1 to buffer2
+function filter_copy_coefs(buf1, buf2) (
+  buf2[2] = buf1[2];
+  buf2[3] = buf1[3];
+  buf2[4] = buf1[4];
+);
+
+// wraps filter function using buffers
+function filter_setf(buf, freq, q) (
+  filter.zdf_setf(freq, q);
+  buf[2] = filter.g;
+  buf[3] = filter.r2;
+  buf[4] = filter.h;
+);
+
+// wraps filter function using buffers
+function filter_lp(buf, sample) (
+  filter.s1 = buf[0];
+  filter.s2 = buf[1];
+  filter.g = buf[2];
+  filter.r2 = buf[3];
+  filter.h = buf[4];
+  filter.zdf_svf_lp(sample);
+  buf[0] = filter.s1;
+  buf[1] = filter.s2;
+);
+
 @block
 
 while (midirecv(offset, msg1, note, vel)) (
@@ -148,8 +161,15 @@ while (midirecv(offset, msg1, note, vel)) (
     env = pitch_env + note * 7;
     adsr_seta(pitch_att * 0.001, env);
     adsr_setd(pitch_dec * 0.001, env);
-    adsr_sets(1, env);
+    adsr_sets(pitch_sus, env);
     adsr_setr(pitch_rel * 0.001, env);
+    adsr_a(1, env);
+    
+    env = filter_env + note * 7;
+    adsr_seta(filter_att * 0.001, env);
+    adsr_setd(filter_dec * 0.001, env);
+    adsr_sets(filter_sus, env);
+    adsr_setr(filter_rel * 0.001, env);
     adsr_a(1, env);
   );
 
@@ -159,6 +179,7 @@ while (midirecv(offset, msg1, note, vel)) (
     ptr >= 0 ? (
       adsr_r(envelope + note * 7);
       adsr_r(pitch_env + note * 7);
+      adsr_r(filter_env + note * 7);
     );
   );
 
@@ -178,21 +199,16 @@ osc1_coarse_det = pow(2, osc1_coarse / 12);
 
 @sample
 
-outl = 0;
-outr = 0;
 remove_ptrs.array_clear();
 ptr = poly.array_first();
 while(ptr >= 0) ( // for each note/voice
-
+  out_l = 0;
+  out_r = 0;
   envbuf = envelope + ptr[0] * 7;
   env_state = adsr_process(envbuf);
   pitchbuf = pitch_env + ptr[0] * 7;
   adsr_process(pitchbuf);
   osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
-  filterbuf_l = filter_arr_l + ptr[0] * 11;
-  filterbuf_r = filter_arr_r + ptr[0] * 11;
-  filter_setf(filterbuf_l, 400, 1);
-  filter_copy_coefs(filterbuf_l, filterbuf_r);
 
   // OSC1
   osc_det = osc1_coarse_det * osc1_fine_det * osc_pitch_det;
@@ -200,11 +216,23 @@ while(ptr >= 0) ( // for each note/voice
   ptr[4] = wrap(ptr[4] + ptr[2] / osc1_st_det * osc_det); // phase right
   wave_l = make_wave(osc1_wave, wrap(ptr[3] + osc1_phase_offset * 0.25));
   wave_r = make_wave(osc1_wave, wrap(ptr[4] - osc1_phase_offset * 0.25));
-  wave_l = filter_lp(filterbuf_l, wave_l);
-  wave_r = filter_lp(filterbuf_r, wave_r);
-  spl0 += wave_l * (1 - osc1_pan) * envbuf[] * osc1_gain;
-  spl1 += wave_r * (1 + osc1_pan) * envbuf[] * osc1_gain;
+  out_l += wave_l * (1 - osc1_pan) * envbuf[] * osc1_gain;
+  out_r += wave_r * (1 + osc1_pan) * envbuf[] * osc1_gain;
 
+  filterbuf = filter_env + ptr[0] * 7; // envelope buffer
+  adsr_process(filterbuf);
+  filterbuf_l = filter_arr_l + ptr[0] * 11; // filter buffer left
+  filterbuf_r = filter_arr_r + ptr[0] * 11; // filter buffer right
+  
+  multiplier = pow(20000/filter_freq, filterbuf[0] * filter_adsr_amt);
+  filter_setf(filterbuf_l, filter_freq * multiplier, filter_q);
+  filter_copy_coefs(filterbuf_l, filterbuf_r);
+  out_l = filter_lp(filterbuf_l, out_l);
+  out_r = filter_lp(filterbuf_r, out_r);
+  
+  spl0 += out_l;
+  spl1 += out_r;
+  
   // mark note for deletion
   env_state == 0 ? (
     p = remove_ptrs.array_add();
