@@ -1,7 +1,7 @@
 desc:JS3Osc
 tags: synth, instrument
 
-slider1:maxpoly=32<2, 64, 1>-Polyphony
+slider1:maxpoly=16<2, 32, 1>-Polyphony
 
 slider2:osc1_vol=-18<-60, 0, .01>-Osc1 Volume
 slider3:osc1_wave=0<0, 5, 1{Sine,Triangle,Saw,Square,Pulse,Noise}>-Osc1 Wave
@@ -58,7 +58,7 @@ import 3o.zdf_filter.jsfx-inc
 import 3o.mouselib.jsfx-inc
 import 3o.gfxlib.jsfx-inc
 
-options:gfx_hz=60
+options:gfx_hz=60 no_meter
 
 @init
 
@@ -363,7 +363,7 @@ while(ptr >= 0) (
   ptr = remove_ptrs.array_next(ptr);
 );
 
-@gfx 520 180
+@gfx 440 380
 
 gfx_clear = COLOR_BG;
 mouse.update_mouse_state();
