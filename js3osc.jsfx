@@ -175,17 +175,17 @@ function on_slider() (
   osc1_gain = db2gain(osc1_vol);
   osc1_st_det = pow(2, osc1_phase_det / 1200); // stereo detune
   osc1_fine_det = pow(2, osc1_fine / 1200);
-  osc1_coarse_det = pow(2, osc1_coarse / 12);
+  osc1_coarse_det = pow(2, (osc1_coarse|0) / 12);
   
   osc2_gain = db2gain(osc2_vol);
   osc2_st_det = pow(2, osc2_phase_det / 1200);
   osc2_fine_det = pow(2, osc2_fine / 1200);
-  osc2_coarse_det = pow(2, osc2_coarse / 12);
+  osc2_coarse_det = pow(2, (osc2_coarse|0) / 12);
   
   osc3_gain = db2gain(osc3_vol);
   osc3_st_det = pow(2, osc3_phase_det / 1200);
   osc3_fine_det = pow(2, osc3_fine / 1200);
-  osc3_coarse_det = pow(2, osc3_coarse / 12);
+  osc3_coarse_det = pow(2, (osc3_coarse|0) / 12);
 );
 
 @slider
@@ -283,7 +283,7 @@ while(ptr >= 0) ( // for each note/voice
   pitch_amt ? (
     pitchbuf = pitch_env + ptr[0] * 7;
     adsr_process(pitchbuf);
-    osc_pitch_det = pow(2, pitchbuf[0] * pitch_amt / 12);
+    osc_pitch_det = pow(2, pitchbuf[0] * (pitch_amt | 0) / 12);
   ) : (
     osc_pitch_det = 1;
   );
@@ -494,7 +494,7 @@ gfx_sel_envelope == 0 ? ( // AMP
   draw_knob(260,310, 33, "Rel", 1, 1, 10000, 1, 0, sprintf(#, "%i ms", slider(33)));
 )
 : gfx_sel_envelope == 1 ? ( // PITCH
-  draw_knob(20, 310, 35, "Amt", 0, -24, 24, 0, 1, sprintf(#, "%.1f", slider(35)));
+  draw_knob(20, 310, 35, "Amt", 0, -24, 24, 0, 1, sprintf(#, "%i", slider(35)));
   draw_knob(80, 310, 36, "Att", 1, 1, 10000, 1, 0, sprintf(#, "%i ms", slider(36)));
   draw_knob(140,310, 37, "Dec", 1, 1, 10000, 1, 0, sprintf(#, "%i ms", slider(37)));
   draw_knob(200,310, 38, "Sus", 1, 0, 1, 0, 0, sprintf(#, "%.2f", slider(38)));
