@@ -163,6 +163,9 @@ function on_slider() (
 osc1_gain.rc_set(0.0033);
 osc2_gain.rc_set(0.0033);
 osc3_gain.rc_set(0.0033);
+osc1_phase_offset.rc_set(0.0033);
+osc2_phase_offset.rc_set(0.0033);
+osc3_phase_offset.rc_set(0.0033);
 
 @slider
 
@@ -252,6 +255,9 @@ while (midirecv(offset, msg1, note, vel)) (
 osc1_gain.smooth();
 osc2_gain.smooth();
 osc3_gain.smooth();
+osc1_phase_offset.smooth();
+osc2_phase_offset.smooth();
+osc3_phase_offset.smooth();
 
 remove_ptrs.array_clear();
 ptr = poly.array_first();
@@ -273,8 +279,8 @@ while(ptr >= 0) ( // for each note/voice
     osc_det = osc1_coarse_det * osc1_fine_det * osc_pitch_det;
     ptr[3] = wrap(ptr[3] + ptr[2] * osc1_st_det * osc_det); // phase left
     ptr[4] = wrap(ptr[4] + ptr[2] / osc1_st_det * osc_det); // phase right
-    wave_l = make_wave(osc1_wave, wrap(ptr[3] + osc1_phase_offset * 0.25));
-    wave_r = make_wave(osc1_wave, wrap(ptr[4] - osc1_phase_offset * 0.25));
+    wave_l = make_wave(osc1_wave, wrap(ptr[3] + osc1_phase_offset.smooth * 0.25));
+    wave_r = make_wave(osc1_wave, wrap(ptr[4] - osc1_phase_offset.smooth * 0.25));
     out_l += wave_l * (1 - osc1_pan) * envbuf[] * osc1_gain.smooth * (osc1_inv ? -1 : 1);
     out_r += wave_r * (1 + osc1_pan) * envbuf[] * osc1_gain.smooth * (osc1_inv ? -1 : 1);
   );
@@ -284,8 +290,8 @@ while(ptr >= 0) ( // for each note/voice
     osc_det = osc2_coarse_det * osc2_fine_det * osc_pitch_det;
     ptr[5] = wrap(ptr[5] + ptr[2] * osc2_st_det * osc_det); // phase left
     ptr[6] = wrap(ptr[6] + ptr[2] / osc2_st_det * osc_det); // phase right
-    wave_l = make_wave(osc2_wave, wrap(ptr[5] + osc2_phase_offset * 0.25));
-    wave_r = make_wave(osc2_wave, wrap(ptr[6] - osc2_phase_offset * 0.25));
+    wave_l = make_wave(osc2_wave, wrap(ptr[5] + osc2_phase_offset.smooth * 0.25));
+    wave_r = make_wave(osc2_wave, wrap(ptr[6] - osc2_phase_offset.smooth * 0.25));
     out_l += wave_l * (1 - osc2_pan) * envbuf[] * osc2_gain.smooth * (osc2_inv ? -1 : 1);
     out_r += wave_r * (1 + osc2_pan) * envbuf[] * osc2_gain.smooth * (osc2_inv ? -1 : 1);
   );
@@ -295,8 +301,8 @@ while(ptr >= 0) ( // for each note/voice
     osc_det = osc3_coarse_det * osc3_fine_det * osc_pitch_det;
     ptr[7] = wrap(ptr[7] + ptr[2] * osc3_st_det * osc_det); // phase left
     ptr[8] = wrap(ptr[8] + ptr[2] / osc3_st_det * osc_det); // phase right
-    wave_l = make_wave(osc3_wave, wrap(ptr[7] + osc3_phase_offset * 0.25));
-    wave_r = make_wave(osc3_wave, wrap(ptr[8] - osc3_phase_offset * 0.25));
+    wave_l = make_wave(osc3_wave, wrap(ptr[7] + osc3_phase_offset.smooth * 0.25));
+    wave_r = make_wave(osc3_wave, wrap(ptr[8] - osc3_phase_offset.smooth * 0.25));
     out_l += wave_l * (1 - osc3_pan) * envbuf[] * osc3_gain.smooth * (osc3_inv ? -1 : 1);
     out_r += wave_r * (1 + osc3_pan) * envbuf[] * osc3_gain.smooth * (osc3_inv ? -1 : 1);
   );
