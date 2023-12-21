@@ -3,7 +3,7 @@ tags: synth, instrument
 
 slider1:maxpoly=16<2, 32, 1>-Polyphony
 
-slider2:osc1_vol=-18<-60, 0, .01>-Osc1 Volume
+slider2:osc1_vol=80<0, 100, .01>-Osc1 Volume
 slider3:osc1_wave=0<0, 5, 1{Sine,Triangle,Saw,Square,Pulse,Noise}>-Osc1 Wave
 slider4:osc1_phase_offset=0<-1,1,0.01>-Osc1 Phase Offset
 slider5:osc1_phase_det=0<-100, 100, 1>-Osc1 Phase Detune
@@ -12,7 +12,7 @@ slider7:osc1_fine=0<-99, 99, 1>-Osc1 Fine
 slider8:osc1_pan=0<-1, 1, 0.01>-Osc1 Pan
 slider9:osc1_inv=0<0, 1, 1{No, Yes}>-Osc1 Invert phase
 
-slider11:osc2_vol=-18<-60, 0, .01>-Osc2 Volume
+slider11:osc2_vol=80<0, 100, .01>-Osc2 Volume
 slider12:osc2_wave=0<0, 5, 1{Sine,Triangle,Saw,Square,Pulse,Noise}>-Osc2 Wave
 slider13:osc2_phase_offset=0<-1,1,0.01>-Osc2 Phase Offset
 slider14:osc2_phase_det=0<-100, 100, 1>-Osc2 Phase Detune
@@ -21,7 +21,7 @@ slider16:osc2_fine=0<-99, 99, 1>-Osc2 Fine
 slider17:osc2_pan=0<-1, 1, 0.01>-Osc2 Pan
 slider18:osc2_inv=0<0, 1, 1{No, Yes}>-Osc2 Invert phase
 
-slider20:osc3_vol=-18<-60, 0, .01>-Osc3 Volume
+slider20:osc3_vol=80<0, 100, .01>-Osc3 Volume
 slider21:osc3_wave=0<0, 5, 1{Sine,Triangle,Saw,Square,Pulse,Noise}>-Osc3 Wave
 slider22:osc3_phase_offset=0<-1,1,0.01>-Osc3 Phase Offset
 slider23:osc3_phase_det=0<-100, 100, 1>-Osc3 Phase Detune
@@ -54,7 +54,7 @@ slider50:rand_phase=0<0,1,0.01>-Rand phase
 
 import 3o.adsr.jsfx-inc
 import 3o.array.jsfx-inc
-import 3o.zdf_filter.jsfx-inc
+import 3o.rbj_filter.jsfx-inc
 import 3o.mouselib.jsfx-inc
 import 3o.gfxlib.jsfx-inc
 
@@ -103,10 +103,28 @@ function pulse_wave(cycle) (
   );
 );
 function make_noise() (rand(2) - 1;);
-function db2gain(db) (10^(db / 20););
+function db2gain (db) local (val) (
+  val = 10^(db / 20);
+  val <= 0.001 ? 0 : val;
+);
+function normalize_vol_slider(val) ( val * 60 / 100 - 60 );
 function round(in) (floor(in + 0.5 * sign(in)););
 function note2freq(n) (440 * pow(2, (n - 69) / 12););
 function freq2note(f) ( round(12*(log(f/440)/log(2))+69); );
+
+function rc_set(rc)
+  instance(a) (
+    a = 1 / (rc * srate + 1);
+);
+function rc_lp(sample)
+  instance(lp, a) (
+    lp += a * (sample - lp);
+);
+function smooth()
+  instance (lp, smooth) (
+    lp = smooth;
+    smooth = this.rc_lp(this);
+);
 
 function make_wave(wave, cycle) (
   wave == 0 ? sine_wave(cycle)
@@ -117,76 +135,34 @@ function make_wave(wave, cycle) (
     : make_noise();
 );
 
-// copy filter coeficients from buffer1 to buffer2
-function filter_copy_coefs(buf1, buf2) (
-  buf2[2] = buf1[2];
-  buf2[3] = buf1[3];
-  buf2[4] = buf1[4];
-);
-
-// wraps filter function using buffers
-function filter_setf(buf, freq, q) (
-  filter.zdf_setf(freq, q);
-  buf[2] = filter.g;
-  buf[3] = filter.r2;
-  buf[4] = filter.h;
-);
-
-// wraps filter function using buffers
-function filter_lp(buf, sample) local(lp) (
-  filter.s1 = buf[0];
-  filter.s2 = buf[1];
-  filter.g = buf[2];
-  filter.r2 = buf[3];
-  filter.h = buf[4];
-  lp = filter.zdf_svf_lp(sample);
-  buf[0] = filter.s1;
-  buf[1] = filter.s2;
-  lp;
-);
-
-// wraps filter function using buffers
-function filter_bp(buf, sample) local(bp) (
-  filter.s1 = buf[0];
-  filter.s2 = buf[1];
-  filter.g = buf[2];
-  filter.r2 = buf[3];
-  filter.h = buf[4];
-  bp = filter.zdf_svf_bp(sample);
-  buf[0] = filter.s1;
-  buf[1] = filter.s2;
-  bp;
-);
-
-// wraps filter function using buffers
-function filter_hp(buf, sample) local(hp) (
-  filter.s1 = buf[0];
-  filter.s2 = buf[1];
-  filter.g = buf[2];
-  filter.r2 = buf[3];
-  filter.h = buf[4];
-  hp = filter.zdf_svf_hp(sample);
-  buf[0] = filter.s1;
-  buf[1] = filter.s2;
-  hp;
+function copy_filter_coefs (f1, f2) (
+  f2[0] = f1[0]; // a1
+  f2[1] = f1[1]; // a2
+  f2[2] = f1[2]; // b0
+  f2[3] = f1[3]; // b1
+  f2[4] = f1[4]; // b2
 );
 
 function on_slider() (
-  osc1_gain = db2gain(osc1_vol);
+  osc1_gain = db2gain(normalize_vol_slider(osc1_vol));
   osc1_st_det = pow(2, osc1_phase_det / 1200); // stereo detune
   osc1_fine_det = pow(2, osc1_fine / 1200);
   osc1_coarse_det = pow(2, (osc1_coarse|0) / 12);
-  
-  osc2_gain = db2gain(osc2_vol);
+
+  osc2_gain = db2gain(normalize_vol_slider(osc2_vol));
   osc2_st_det = pow(2, osc2_phase_det / 1200);
   osc2_fine_det = pow(2, osc2_fine / 1200);
   osc2_coarse_det = pow(2, (osc2_coarse|0) / 12);
-  
-  osc3_gain = db2gain(osc3_vol);
+
+  osc3_gain = db2gain(normalize_vol_slider(osc3_vol));
   osc3_st_det = pow(2, osc3_phase_det / 1200);
   osc3_fine_det = pow(2, osc3_fine / 1200);
   osc3_coarse_det = pow(2, (osc3_coarse|0) / 12);
 );
+
+osc1_gain.rc_set(0.0033);
+osc2_gain.rc_set(0.0033);
+osc3_gain.rc_set(0.0033);
 
 @slider
 
@@ -230,7 +206,7 @@ while (midirecv(offset, msg1, note, vel)) (
     ptr[6] = note_repeat ? last_phase_2r : rand_phase * (rand() - 0.5); // osc 2
     ptr[7] = note_repeat ? last_phase_3l : rand_phase * (rand() - 0.5); // osc 3
     ptr[8] = note_repeat ? last_phase_3r : rand_phase * (rand() - 0.5); // osc 3
-    
+
     env = envelope + note * 7;
     adsr_seta(env_att * 0.001, env);
     adsr_setd(env_dec * 0.001, env);
@@ -273,6 +249,10 @@ while (midirecv(offset, msg1, note, vel)) (
 
 @sample
 
+osc1_gain.smooth();
+osc2_gain.smooth();
+osc3_gain.smooth();
+
 remove_ptrs.array_clear();
 ptr = poly.array_first();
 while(ptr >= 0) ( // for each note/voice
@@ -295,10 +275,10 @@ while(ptr >= 0) ( // for each note/voice
     ptr[4] = wrap(ptr[4] + ptr[2] / osc1_st_det * osc_det); // phase right
     wave_l = make_wave(osc1_wave, wrap(ptr[3] + osc1_phase_offset * 0.25));
     wave_r = make_wave(osc1_wave, wrap(ptr[4] - osc1_phase_offset * 0.25));
-    out_l += wave_l * (1 - osc1_pan) * envbuf[] * osc1_gain * (osc1_inv ? -1 : 1);
-    out_r += wave_r * (1 + osc1_pan) * envbuf[] * osc1_gain * (osc1_inv ? -1 : 1);
+    out_l += wave_l * (1 - osc1_pan) * envbuf[] * osc1_gain.smooth * (osc1_inv ? -1 : 1);
+    out_r += wave_r * (1 + osc1_pan) * envbuf[] * osc1_gain.smooth * (osc1_inv ? -1 : 1);
   );
-  
+
   // OSC2
   osc2_vol > -60 ? (
     osc_det = osc2_coarse_det * osc2_fine_det * osc_pitch_det;
@@ -306,10 +286,10 @@ while(ptr >= 0) ( // for each note/voice
     ptr[6] = wrap(ptr[6] + ptr[2] / osc2_st_det * osc_det); // phase right
     wave_l = make_wave(osc2_wave, wrap(ptr[5] + osc2_phase_offset * 0.25));
     wave_r = make_wave(osc2_wave, wrap(ptr[6] - osc2_phase_offset * 0.25));
-    out_l += wave_l * (1 - osc2_pan) * envbuf[] * osc2_gain * (osc2_inv ? -1 : 1);
-    out_r += wave_r * (1 + osc2_pan) * envbuf[] * osc2_gain * (osc2_inv ? -1 : 1);
+    out_l += wave_l * (1 - osc2_pan) * envbuf[] * osc2_gain.smooth * (osc2_inv ? -1 : 1);
+    out_r += wave_r * (1 + osc2_pan) * envbuf[] * osc2_gain.smooth * (osc2_inv ? -1 : 1);
   );
-  
+
   // OSC3
   osc3_vol > -60 ? (
     osc_det = osc3_coarse_det * osc3_fine_det * osc_pitch_det;
@@ -317,30 +297,29 @@ while(ptr >= 0) ( // for each note/voice
     ptr[8] = wrap(ptr[8] + ptr[2] / osc3_st_det * osc_det); // phase right
     wave_l = make_wave(osc3_wave, wrap(ptr[7] + osc3_phase_offset * 0.25));
     wave_r = make_wave(osc3_wave, wrap(ptr[8] - osc3_phase_offset * 0.25));
-    out_l += wave_l * (1 - osc3_pan) * envbuf[] * osc3_gain * (osc3_inv ? -1 : 1);
-    out_r += wave_r * (1 + osc3_pan) * envbuf[] * osc3_gain * (osc3_inv ? -1 : 1);
+    out_l += wave_l * (1 - osc3_pan) * envbuf[] * osc3_gain.smooth * (osc3_inv ? -1 : 1);
+    out_r += wave_r * (1 + osc3_pan) * envbuf[] * osc3_gain.smooth * (osc3_inv ? -1 : 1);
   );
-  
+
+  // Apply filter
   filter_shape != 0 ? (
     filterbuf = filter_env + ptr[0] * 7; // envelope buffer
     adsr_process(filterbuf);
-    filterbuf_l = filter_arr_l + ptr[0] * 11; // filter buffer left
-    filterbuf_r = filter_arr_r + ptr[0] * 11; // filter buffer right
     multiplier = pow(20000/filter_freq, filterbuf[0] * filter_adsr_amt);
-    
-    filter_setf(filterbuf_l, filter_freq * multiplier, filter_q);
-    filter_copy_coefs(filterbuf_l, filterbuf_r);
-    
+
+    filterbuf_l = filter_arr_l + ptr[0] * 11; // filter buffer left
+    filterbuf_r = filter_arr_r + ptr[0] * 11; // filter buffer left
+
     filter_shape == 1 ? (
-      out_l = filter_lp(filterbuf_l, out_l);
-      out_r = filter_lp(filterbuf_r, out_r);
+      rbj_lp(filterbuf_l, filter_freq * multiplier, filter_q);
     ) : filter_shape == 2 ? (
-      out_l = filter_bp(filterbuf_l, out_l);
-      out_r = filter_bp(filterbuf_r, out_r);
+      rbj_bp(filterbuf_l, filter_freq * multiplier, filter_q);
     ) : (
-      out_l = filter_hp(filterbuf_l, out_l);
-      out_r = filter_hp(filterbuf_r, out_r);
+      rbj_hp(filterbuf_l, filter_freq * multiplier, filter_q);
     );
+    copy_filter_coefs(filterbuf_l, filterbuf_r);
+    out_l = rbj_df1(filterbuf_l, out_l);
+    out_r = rbj_df1(filterbuf_r, out_r);
   );
 
   spl0 += out_l;
@@ -395,7 +374,7 @@ mouse.left_click && mouse_in_rect(80, 20 - 2, 40, 10 + 2) ? (
   on_slider();
 );
 
-draw_knob(20, 40, 2, "Vol", -12, -60, 12, 0, 0, sprintf(#, "%.1f dB", slider(2)));
+draw_knob(20, 40, 2, "Vol", 80, 0, 100, 0, 0, sprintf(#, "%i %%", slider(2)));
 draw_knob(80, 40, 4, "Ph Off", 0, -1, 1, 0, 1, sprintf(#, "%.2f", slider(4)));
 draw_knob(140, 40, 5, "Ph Det", 0, -100, 100, 0, 1, sprintf(#, "%i", slider(5)));
 draw_knob(200, 40, 6, "Coarse", 0, -24, 24, 0, 1, sprintf(#, "%i", slider(6)));
@@ -429,7 +408,7 @@ mouse.left_click && mouse_in_rect(80, 110 - 2, 40, 10 + 2) ? (
   on_slider();
 );
 
-draw_knob(20, 130, 11, "Vol", -12, -60, 12, 0, 0, sprintf(#, "%.1f dB", slider(11)));
+draw_knob(20, 130, 11, "Vol", 80, 0, 100, 0, 0, sprintf(#, "%i %%", slider(11)));
 draw_knob(80, 130, 13, "Ph Off", 0, -1, 1, 0, 1, sprintf(#, "%.2f", slider(13)));
 draw_knob(140,130, 14, "Ph Det", 0, -100, 100, 0, 1, sprintf(#, "%i", slider(14)));
 draw_knob(200,130, 15, "Coarse", 0, -24, 24, 0, 1, sprintf(#, "%i", slider(15)));
@@ -463,7 +442,7 @@ mouse.left_click && mouse_in_rect(80, 200 - 2, 40, 10 + 2) ? (
   on_slider();
 );
 
-draw_knob(20, 220, 20, "Vol", -12, -60, 12, 0, 0, sprintf(#, "%.1f dB", slider(20)));
+draw_knob(20, 220, 20, "Vol", 80, 0, 100, 0, 0, sprintf(#, "%i %%", slider(20)));
 draw_knob(80, 220, 22, "Ph Off", 0, -1, 1, 0, 1, sprintf(#, "%.2f", slider(22)));
 draw_knob(140,220, 23, "Ph Det", 0, -100, 100, 0, 1, sprintf(#, "%i", slider(23)));
 draw_knob(200,220, 24, "Coarse", 0, -24, 24, 0, 1, sprintf(#, "%i", slider(24)));
@@ -511,7 +490,7 @@ gfx_sel_envelope == 0 ? ( // AMP
 set_color(0x666666);
 gfx_x = 320; gfx_y = 290;
 gfx_drawstr("FILTER");
-gfx_line(310, 290, 310, 350); 
+gfx_line(310, 290, 310, 350);
 
 shape_name = filter_shape == 0 ? "Off"
   : filter_shape == 1 ? "LP"
